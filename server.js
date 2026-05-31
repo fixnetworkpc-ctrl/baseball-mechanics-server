@@ -101,7 +101,7 @@ app.post("/analyze", limiter, async (req, res) => {
     const message = await client.messages.create({ model: "claude-sonnet-4-6", max_tokens: 4000, system: systemPrompt, messages: [{ role: "user", content }] });
     const raw = message.content.map(b => b.text || "").join("").trim();
     const analysis = extractJSON(raw);
-    analysis._benchmarks = benchmarkNames;
+    analysis._benchmarks = mode === "pitching" ? "Top 10 MLB pitchers of all time & top 10 current MLB pitchers" : "Top 10 MLB hitters of all time & top 10 current MLB hitters";
     res.json({ analysis });
   } catch (err) {
     console.error("Analysis error:", err.message);
