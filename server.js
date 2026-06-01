@@ -57,7 +57,50 @@ function buildPitchingPrompt(pitchers) {
 Respond ONLY with valid JSON (no markdown, no preamble):\n{"overallGrade":"A","overallSummary":"2-3 sentences mentioning which benchmark pitchers this resembles.","armHealthRisk":"LOW","armHealthNote":"1-2 sentences on arm safety.","strengths":[{"title":"title","detail":"2-4 sentences.","mlbMatch":"Which pitcher and why."}],"opportunities":[{"title":"title","priority":"CRITICAL","frameRef":"Frame 8","detail":"Thorough explanation with benchmark comparison.","mlbExample":"Specific benchmark pitcher who does this correctly and what it looks like.","drill":"Named drill with step-by-step."}],"coachNote":"2-3 sentence honest encouraging close."}\narmHealthRisk: LOW MODERATE or HIGH. priority: CRITICAL HIGH MEDIUM or LOW.`;
 }
 
-const BATTING_PROMPT = `You are an expert baseball hitting coach and biomechanics analyst with 25+ years of experience. Your analysis is benchmarked against: Ted Williams, Mike Trout, Ken Griffey Jr., Tony Gwynn, Hank Aaron, Albert Pujols, George Brett, Barry Bonds, Frank Thomas, Freddie Freeman.\n\nCRITICAL RULE: Your JSON response must NEVER contain specific MLB player names. Use phrases like elite MLB-level swing, professional-grade hip rotation, consistent with top MLB hitting standards.
+
+
+const CLASSIC_BATTERS = [
+  { name: "Ted Williams", note: "most studied swing in history, perfect hip-to-shoulder sequence, bat path stays in the zone longest of any hitter ever analyzed" },
+  { name: "Babe Ruth", note: "legendary hip rotation and weight transfer, generated elite power from explosive lower-half drive" },
+  { name: "Hank Aaron", note: "exceptional quick wrists and compact path to contact, bat speed generated late through the zone" },
+  { name: "Willie Mays", note: "balanced athletic load and explosive hip turn, exceptional timing with consistent barrel path" },
+  { name: "Mickey Mantle", note: "elite switch-hitter mechanics, explosive lower half generated power from both sides equally" },
+  { name: "Stan Musial", note: "unusual coiled stance but perfectly repeatable, proved mechanics only need to be consistent not textbook" },
+  { name: "Barry Bonds", note: "most biomechanically precise swing ever studied, elite hip rotation with exceptional barrel control through the zone" },
+  { name: "Tony Gwynn", note: "greatest contact mechanics in modern baseball, short path to ball with exceptional hands-inside discipline" },
+  { name: "Ken Griffey Jr.", note: "widely considered the most aesthetically perfect swing, effortless hip rotation with elite extension and follow-through" },
+  { name: "Lou Gehrig", note: "powerful consistent upper-body mechanics, exceptional hands through the zone with elite weight transfer" },
+];
+
+const CURRENT_BATTERS = [
+  { name: "Shohei Ohtani", note: "elite hip rotation and bat speed from exceptional lower half, generates elite power while maintaining barrel accuracy" },
+  { name: "Mike Trout", note: "gold standard modern hitting mechanics, elite barrel control with consistent hip-to-shoulder separation" },
+  { name: "Freddie Freeman", note: "textbook weight transfer and consistent barrel path, exceptional extension through the zone" },
+  { name: "Mookie Betts", note: "compact controlled swing with elite bat-to-ball skills, exceptional hip turn from minimal load" },
+  { name: "Juan Soto", note: "exceptional hip load and patience-driven contact approach, elite ability to stay back on off-speed pitches" },
+  { name: "Yordan Alvarez", note: "massive power from elite hip-to-shoulder separation, exceptional rear leg drive generating elite exit velocity" },
+  { name: "Ronald Acuna Jr.", note: "explosive athleticism with quick hands through the zone, exceptional first-move quickness with elite bat speed" },
+  { name: "Corey Seager", note: "smooth lefty mechanics with consistent extension, elite hip turn with exceptional barrel path to all fields" },
+  { name: "Bobby Witt Jr.", note: "elite bat speed with athletic lower half, emerging as one of the most mechanically explosive young hitters" },
+  { name: "Paul Goldschmidt", note: "veteran-level disciplined mechanics and barrel accuracy, exceptional hands-inside approach with elite contact rate" },
+];
+
+function selectBatters() {
+  const classic = [...CLASSIC_BATTERS].sort(() => Math.random() - 0.5).slice(0, 5);
+  const current = [...CURRENT_BATTERS].sort(() => Math.random() - 0.5).slice(0, 5);
+  return [...classic, ...current].sort(() => Math.random() - 0.5);
+}
+
+function buildBattingPrompt(batters) {
+  const list = batters.map((b, i) => (i + 1) + ". " + b.name.toUpperCase() + " — " + b.note).join("\n");
+  const intro = "You are an expert baseball hitting coach and biomechanics analyst with 25+ years of experience. Your analysis is benchmarked against these 10 elite MLB hitters randomly selected from a pool of 20:\n\n";
+  const standards = "\n\nShared mechanical standards: balanced athletic stance, controlled load and trigger, stride toward pitcher, front heel plant triggers hip rotation, hips fire before hands, hands stay inside the ball, barrel stays in the zone, extension through contact, complete follow-through with balance.\n\n";
+  const rule = "CRITICAL RULE: Your JSON response must NEVER contain specific MLB player names. Use phrases like elite MLB-level hip rotation, professional-grade barrel path, consistent with top MLB contact mechanics. The benchmark list informs your analysis quality only — never appear as named references in your JSON output.\n\n";
+  const format = "Analyze labeled frames as a complete swing sequence. Respond ONLY with valid JSON (no markdown, no preamble):\n{\"overallGrade\":\"A\",\"overallSummary\":\"2-3 sentences\",\"injuryRisk\":\"LOW\",\"healthNote\":\"1-2 sentences on wrist/elbow/shoulder stress.\",\"strengths\":[{\"title\":\"title\",\"detail\":\"2-4 sentences.\",\"mlbMatch\":\"Describe which benchmark profile this most resembles without naming the player.\"}],\"opportunities\":[{\"title\":\"title\",\"priority\":\"CRITICAL\",\"frameRef\":\"Frame 7\",\"detail\":\"Thorough explanation.\",\"mlbExample\":\"Describe what elite batters do here without naming the player.\",\"drill\":\"Named drill with step-by-step.\"}],\"coachNote\":\"2-3 sentence honest encouraging close.\"}\ninjuryRisk: LOW MODERATE or HIGH. priority: CRITICAL HIGH MEDIUM or LOW.";
+  return intro + list + standards + rule + format;
+}
+
+const BATTING_PROMPT_UNUSED = `You are an expert baseball hitting coach and biomechanics analyst with 25+ years of experience. Your analysis is benchmarked against: Ted Williams, Mike Trout, Ken Griffey Jr., Tony Gwynn, Hank Aaron, Albert Pujols, George Brett, Barry Bonds, Frank Thomas, Freddie Freeman.\n\nCRITICAL RULE: Your JSON response must NEVER contain specific MLB player names. Use phrases like elite MLB-level swing, professional-grade hip rotation, consistent with top MLB hitting standards.
 
 Analyze labeled frames as a complete swing sequence. For every opportunity name which hitter demonstrates the correct version. For every strength name which hitter this most resembles.\n\nRespond ONLY with valid JSON (no markdown, no preamble):\n{"overallGrade":"A","overallSummary":"2-3 sentences mentioning which benchmark hitters this resembles.","injuryRisk":"LOW","healthNote":"1-2 sentences on wrist/elbow/shoulder stress.","strengths":[{"title":"title","detail":"2-4 sentences.","mlbMatch":"Which hitter and why."}],"opportunities":[{"title":"title","priority":"CRITICAL","frameRef":"Frame 7","detail":"Thorough explanation.","mlbExample":"Specific benchmark hitter who does this correctly.","drill":"Named drill with step-by-step."}],"coachNote":"2-3 sentence honest encouraging close."}\ninjuryRisk: LOW MODERATE or HIGH. priority: CRITICAL HIGH MEDIUM or LOW.`;
 
@@ -93,7 +136,8 @@ app.post("/analyze", limiter, async (req, res) => {
 
   const client = mode === "pitching" ? pitchingClient : battingClient;
   const selectedPitchers = mode === "pitching" ? selectPitchers() : null;
-  const systemPrompt = mode === "pitching" ? buildPitchingPrompt(selectedPitchers) : BATTING_PROMPT;
+  const selectedBatters = mode === "batting" ? selectBatters() : null;
+  const systemPrompt = mode === "pitching" ? buildPitchingPrompt(selectedPitchers) : buildBattingPrompt(selectedBatters);
   const benchmarkNames = mode === "pitching" ? selectedPitchers.map(p => p.name).join(" · ") : "Ted Williams · Mike Trout · Ken Griffey Jr. · Tony Gwynn · Hank Aaron · Albert Pujols · George Brett · Barry Bonds · Frank Thomas · Freddie Freeman";
 
   const content = frames.map(f => ({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: f.base64 } }));
@@ -105,7 +149,7 @@ app.post("/analyze", limiter, async (req, res) => {
     const message = await client.messages.create({ model: "claude-sonnet-4-6", max_tokens: 4000, system: systemPrompt, messages: [{ role: "user", content }] });
     const raw = message.content.map(b => b.text || "").join("").trim();
     const analysis = extractJSON(raw);
-    analysis._benchmarks = mode === "pitching" ? "Top 10 MLB pitchers of all time & top 10 current MLB pitchers" : "Top 10 MLB hitters of all time & top 10 current MLB hitters";
+    analysis._benchmarks = mode === "pitching" ? "Top 10 MLB pitchers of all time and top 10 current MLB pitchers" : "Top 10 MLB batters of all time and top 10 currently active MLB batters";
     res.json({ analysis });
   } catch (err) {
     console.error("Analysis error:", err.message);
