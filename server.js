@@ -366,10 +366,25 @@ function selectPitchers() {
   return [...classic, ...current].sort(() => Math.random() - 0.5);
 }
 
-function buildPitchingPrompt(pitchers) {
-  const list   = pitchers.map((p, i) => `${i+1}. ${p.name.toUpperCase()} — ${p.note}`).join("\n");
-  const drills = buildDrillList("pitching");
-  return `You are an expert baseball pitching coach and biomechanics analyst with 25+ years of experience. You specialize in arm health, injury prevention, and sustainable mechanics for players aged 8-18. Your analysis for this session is benchmarked against these 10 elite professional pitchers (randomly selected from a pool of 20):\n\n${list}\n\nShared mechanical standards: lower half leads, balanced leg lift, stride toward plate, elbow at or above shoulder when cocked, hip-shoulder separation, arm in power zone, glove side tucked, arm decelerates across body, spine angle maintained.\n\nAnalyze labeled frames as a complete motion sequence comparing to these standards. For every opportunity name which pitcher demonstrates the correct version. For every strength name which pitcher this most resembles.\n\nCRITICAL RULE: Your JSON response must NEVER contain specific player names. Describe mechanics using phrases like professional-grade arm path, elite-level delivery, consistent with high-velocity professional standards. The benchmark list informs your analysis quality only — never appear as named references in your JSON output.\n\nDRILL LIBRARY — for each opportunity use the exact drill name in "drillName":\n${drills}\n\nRespond ONLY with valid JSON (no markdown, no preamble):\n{"overallGrade":"A","overallSummary":"2-3 sentences mentioning which benchmark pitchers this resembles.","armHealthRisk":"LOW","armHealthNote":"1-2 sentences on arm safety.","strengths":[{"title":"title","detail":"2-4 sentences.","mlbMatch":"Which pitcher and why."}],"opportunities":[{"title":"title","priority":"CRITICAL","frameRef":"Frame 8","detail":"Thorough explanation with benchmark comparison.","mlbExample":"Specific benchmark pitcher who does this correctly and what it looks like.","drill":"1-2 sentence player-specific coaching note for this opportunity.","drillName":"Exact drill name from the library above."}],"coachNote":"2-3 sentence honest encouraging close.","qualityWarnings":["include only if a frame is clearly blurry, too dark, or obscures key mechanics — otherwise omit this field"]}\narmHealthRisk: LOW MODERATE or HIGH. priority: CRITICAL HIGH MEDIUM or LOW.`;
+// Static system prompt — computed once at startup and cached by Anthropic
+const STATIC_PITCHING_SYSTEM = `You are an expert baseball pitching coach and biomechanics analyst with 25+ years of experience. You specialize in arm health, injury prevention, and sustainable mechanics for players aged 8-18. Your analysis is benchmarked against 10 elite professional pitchers randomly selected each session from a pool of 20.
+
+Shared mechanical standards: lower half leads, balanced leg lift, stride toward plate, elbow at or above shoulder when cocked, hip-shoulder separation, arm in power zone, glove side tucked, arm decelerates across body, spine angle maintained.
+
+Analyze labeled frames as a complete motion sequence comparing to these standards. For every opportunity name which pitcher demonstrates the correct version. For every strength name which pitcher this most resembles.
+
+CRITICAL RULE: Your JSON response must NEVER contain specific player names. Describe mechanics using phrases like professional-grade arm path, elite-level delivery, consistent with high-velocity professional standards. The benchmark list informs your analysis quality only — never appear as named references in your JSON output.
+
+DRILL LIBRARY — for each opportunity use the exact drill name in "drillName":
+${buildDrillList("pitching")}
+
+Respond ONLY with valid JSON (no markdown, no preamble):
+{"overallGrade":"A","overallSummary":"2-3 sentences mentioning which benchmark pitchers this resembles.","armHealthRisk":"LOW","armHealthNote":"1-2 sentences on arm safety.","strengths":[{"title":"title","detail":"2-4 sentences.","mlbMatch":"Which pitcher and why."}],"opportunities":[{"title":"title","priority":"CRITICAL","frameRef":"Frame 8","detail":"Thorough explanation with benchmark comparison.","mlbExample":"Specific benchmark pitcher who does this correctly and what it looks like.","drill":"1-2 sentence player-specific coaching note for this opportunity.","drillName":"Exact drill name from the library above."}],"coachNote":"2-3 sentence honest encouraging close.","qualityWarnings":["include only if a frame is clearly blurry, too dark, or obscures key mechanics — otherwise omit this field"]}
+armHealthRisk: LOW MODERATE or HIGH. priority: CRITICAL HIGH MEDIUM or LOW.`;
+
+function buildPitcherSection(pitchers) {
+  return "Benchmark pitchers for this session (randomly selected from a pool of 20):\n\n" +
+    pitchers.map((p, i) => `${i+1}. ${p.name.toUpperCase()} — ${p.note}`).join("\n");
 }
 
 // ── Batter benchmark data ─────────────────────────────────────────────────────
@@ -407,15 +422,23 @@ function selectBatters() {
   return [...classic, ...current].sort(() => Math.random() - 0.5);
 }
 
-function buildBattingPrompt(batters) {
-  const list   = batters.map((b, i) => `${i + 1}. ${b.name.toUpperCase()} — ${b.note}`).join("\n");
-  const drills = buildDrillList("batting");
-  const intro  = "You are an expert baseball hitting coach and biomechanics analyst with 25+ years of experience. Your analysis is benchmarked against these 10 elite professional hitters randomly selected from a pool of 20:\n\n";
-  const stds   = "\n\nShared mechanical standards: balanced athletic stance, controlled load and trigger, stride toward pitcher, front heel plant triggers hip rotation, hips fire before hands, hands stay inside the ball, barrel stays in the zone, extension through contact, complete follow-through with balance.\n\n";
-  const rule   = "CRITICAL RULE: Your JSON response must NEVER contain specific player names. Use phrases like professional-grade hip rotation, elite-level barrel path, consistent with top professional contact mechanics. The benchmark list informs your analysis quality only — never appear as named references in your JSON output.\n\n";
-  const drillSec = `DRILL LIBRARY — for each opportunity use the exact drill name in "drillName":\n${drills}\n\n`;
-  const fmt    = "Analyze labeled frames as a complete swing sequence. Respond ONLY with valid JSON (no markdown, no preamble):\n{\"overallGrade\":\"A\",\"overallSummary\":\"2-3 sentences\",\"injuryRisk\":\"LOW\",\"healthNote\":\"1-2 sentences on wrist/elbow/shoulder stress.\",\"strengths\":[{\"title\":\"title\",\"detail\":\"2-4 sentences.\",\"mlbMatch\":\"Describe which benchmark profile this most resembles without naming the player.\"}],\"opportunities\":[{\"title\":\"title\",\"priority\":\"CRITICAL\",\"frameRef\":\"Frame 7\",\"detail\":\"Thorough explanation.\",\"mlbExample\":\"Describe what elite professionals do here without naming the player.\",\"drill\":\"1-2 sentence player-specific coaching note for this opportunity.\",\"drillName\":\"Exact drill name from the library above.\"}],\"coachNote\":\"2-3 sentence honest encouraging close.\",\"qualityWarnings\":[\"include only if a frame is clearly blurry, too dark, or obscures key mechanics — otherwise omit this field\"]}\ninjuryRisk: LOW MODERATE or HIGH. priority: CRITICAL HIGH MEDIUM or LOW.";
-  return intro + list + stds + rule + drillSec + fmt;
+// Static system prompt — computed once at startup and cached by Anthropic
+const STATIC_BATTING_SYSTEM = `You are an expert baseball hitting coach and biomechanics analyst with 25+ years of experience. Your analysis is benchmarked against 10 elite professional hitters randomly selected each session from a pool of 20.
+
+Shared mechanical standards: balanced athletic stance, controlled load and trigger, stride toward pitcher, front heel plant triggers hip rotation, hips fire before hands, hands stay inside the ball, barrel stays in the zone, extension through contact, complete follow-through with balance.
+
+CRITICAL RULE: Your JSON response must NEVER contain specific player names. Use phrases like professional-grade hip rotation, elite-level barrel path, consistent with top professional contact mechanics. The benchmark list informs your analysis quality only — never appear as named references in your JSON output.
+
+DRILL LIBRARY — for each opportunity use the exact drill name in "drillName":
+${buildDrillList("batting")}
+
+Analyze labeled frames as a complete swing sequence. Respond ONLY with valid JSON (no markdown, no preamble):
+{"overallGrade":"A","overallSummary":"2-3 sentences","injuryRisk":"LOW","healthNote":"1-2 sentences on wrist/elbow/shoulder stress.","strengths":[{"title":"title","detail":"2-4 sentences.","mlbMatch":"Describe which benchmark profile this most resembles without naming the player."}],"opportunities":[{"title":"title","priority":"CRITICAL","frameRef":"Frame 7","detail":"Thorough explanation.","mlbExample":"Describe what elite professionals do here without naming the player.","drill":"1-2 sentence player-specific coaching note for this opportunity.","drillName":"Exact drill name from the library above."}],"coachNote":"2-3 sentence honest encouraging close.","qualityWarnings":["include only if a frame is clearly blurry, too dark, or obscures key mechanics — otherwise omit this field"]}
+injuryRisk: LOW MODERATE or HIGH. priority: CRITICAL HIGH MEDIUM or LOW.`;
+
+function buildBatterSection(batters) {
+  return "Benchmark hitters for this session (randomly selected from a pool of 20):\n\n" +
+    batters.map((b, i) => `${i+1}. ${b.name.toUpperCase()} — ${b.note}`).join("\n");
 }
 
 function extractJSON(raw) {
@@ -455,12 +478,18 @@ app.post("/analyze", requireAppSecret, analyzeLimiter, async (req, res) => {
 
   const selectedPitchers = mode === "pitching" ? selectPitchers() : null;
   const selectedBatters  = mode === "batting"  ? selectBatters()  : null;
-  const systemPrompt     = mode === "pitching" ? buildPitchingPrompt(selectedPitchers) : buildBattingPrompt(selectedBatters);
 
   // _benchmarks uses cohortLabels only — player names never leave the server
   const benchmarkNames = mode === "pitching"
     ? selectedPitchers.map(p => p.cohortLabel).join(" · ")
     : selectedBatters.map(b => b.cohortLabel).join(" · ");
+
+  // Prompt caching: static block is cached by Anthropic after first request;
+  // dynamic block (randomized player list) is small and changes each session.
+  const systemBlocks = [
+    { type: "text", text: mode === "pitching" ? STATIC_PITCHING_SYSTEM : STATIC_BATTING_SYSTEM, cache_control: { type: "ephemeral" } },
+    { type: "text", text: mode === "pitching" ? buildPitcherSection(selectedPitchers) : buildBatterSection(selectedBatters) },
+  ];
 
   const content = frames.map(f => ({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: f.base64 } }));
   const name = safeName ? `${mode === "pitching" ? "Pitcher" : "Batter"}: ${safeName}. ` : "";
@@ -468,7 +497,7 @@ app.post("/analyze", requireAppSecret, analyzeLimiter, async (req, res) => {
   content.push({ type: "text", text: `${name}${frames.length} frames: ${seq}. Analyze all frames and return full JSON breakdown.` });
 
   try {
-    const message  = await client.messages.create({ model: "claude-sonnet-4-6", max_tokens: 4000, system: systemPrompt, messages: [{ role: "user", content }] });
+    const message  = await client.messages.create({ model: "claude-sonnet-4-6", max_tokens: 4000, system: systemBlocks, messages: [{ role: "user", content }] });
     const raw      = message.content.map(b => b.text || "").join("").trim();
     let analysis   = extractJSON(raw);
     analysis      = injectDrillData(analysis, mode);
