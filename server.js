@@ -1,4 +1,5 @@
 require("dotenv").config();
+const crypto  = require("crypto");
 const express = require("express");
 const cors = require("cors");
 const rateLimit = require("express-rate-limit");
@@ -55,10 +56,12 @@ app.use(cors({
   },
 }));
 app.use(express.json({ limit: "60mb" }));
+app.use(express.urlencoded({ extended: true }));
 
 const analyzeLimiter = rateLimit({ windowMs: 15*60*1000, max: 30,  message: { message: "Too many requests." } });
 const emailLimiter   = rateLimit({ windowMs: 60*60*1000, max: 20,  message: { message: "Too many requests." } });
-const errorLimiter   = rateLimit({ windowMs: 60*60*1000, max: 50,  message: { message: "Too many requests." } });
+const errorLimiter    = rateLimit({ windowMs: 60*60*1000, max: 50,  message: { message: "Too many requests." } });
+const feedbackLimiter = rateLimit({ windowMs: 60*60*1000, max: 10,  message: "<p>Too many submissions. Please try again later.</p>" });
 
 // ── Drill library ─────────────────────────────────────────────────────────────
 
@@ -470,6 +473,7 @@ app.post("/analyze", requireAppSecret, analyzeLimiter, async (req, res) => {
     let analysis   = extractJSON(raw);
     analysis      = injectDrillData(analysis, mode);
     analysis._benchmarks = benchmarkNames;
+    analysis._reportId   = crypto.randomUUID();
     res.json({ analysis });
   } catch (err) {
     console.error("Analysis error:", err.message);
@@ -523,6 +527,144 @@ app.post("/report-error", requireAppSecret, errorLimiter, async (req, res) => {
     await mailer.sendMail({ from: '"Baseball Mechanics Errors" <fixnetworkpc@gmail.com>', to: OWNER_EMAIL, subject: `App Error: ${safeMessage.substring(0, 60)}`, text });
     res.json({ received: true });
   } catch (err) { res.status(500).json({ message: "Error report failed" }); }
+});
+
+// ── Feedback forms ────────────────────────────────────────────────────────────
+
+function buildFeedbackFormHtml(type, reportId) {
+  const isCoaching = type === "coaching";
+  const title = isCoaching ? "Request Additional Coaching Tips" : "Report an App Issue";
+  const coachingFields = isCoaching ? `
+    <div class="field">
+      <label>Player Name</label>
+      <input type="text" name="playerName" maxlength="80">
+    </div>
+    <div class="field">
+      <label>Pitching or Batting?</label>
+      <select name="analysisMode">
+        <option value="">Select...</option>
+        <option value="pitching">Pitching</option>
+        <option value="batting">Batting</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Your Question <span class="req">*</span></label>
+      <textarea name="question" rows="4" required placeholder="e.g. My son still drops his elbow. Any drills?"></textarea>
+    </div>
+    <div class="field">
+      <label>Additional Notes</label>
+      <textarea name="notes" rows="3" placeholder="Any other context..."></textarea>
+    </div>` : `
+    <div class="field">
+      <label>Device Type</label>
+      <input type="text" name="deviceType" maxlength="80" placeholder="e.g. iPhone 14, Samsung Galaxy S22">
+    </div>
+    <div class="field">
+      <label>App Version</label>
+      <input type="text" name="appVersion" maxlength="20" placeholder="e.g. 1.0.0">
+    </div>
+    <div class="field">
+      <label>Issue Description <span class="req">*</span></label>
+      <textarea name="description" rows="5" required placeholder="Describe the issue..."></textarea>
+    </div>`;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title} — Baseball Mechanics</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#07090f;color:#c8d8f0;min-height:100vh}
+header{background:#07090f;border-bottom:3px solid #b8943a;padding:16px 20px}
+header h1{color:#fff;font-size:20px;margin-bottom:4px}
+header h2{color:#b8943a;font-size:14px;font-weight:400}
+.container{max-width:600px;margin:0 auto;padding:24px 20px}
+.field{margin-bottom:18px}
+label{display:block;font-size:13px;color:#8aaac8;margin-bottom:6px;font-weight:500}
+.req{color:#e74c3c}
+input,select,textarea{width:100%;background:#0d1420;border:1px solid #1a2840;border-radius:6px;color:#c8d8f0;padding:10px 12px;font-size:15px;font-family:inherit}
+textarea{resize:vertical}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#b8943a}
+.honeypot{display:none}
+button{width:100%;background:#b8943a;color:#07090f;border:none;border-radius:8px;padding:14px;font-size:16px;font-weight:700;cursor:pointer;margin-top:8px}
+button:hover{background:#d4a840}
+.rid{font-size:12px;color:#4a6080;margin-bottom:20px;background:#0a1020;padding:10px;border-radius:6px;border:1px solid #1a2840}
+.footer{text-align:center;padding:20px;font-size:12px;color:#4a6080}
+</style>
+</head>
+<body>
+<header><h1>⚾ Baseball Mechanics</h1><h2>${escapeHtml(title)}</h2></header>
+<div class="container">
+${reportId ? `<div class="rid">Analysis ID: ${escapeHtml(reportId)}</div>` : ""}
+<form method="POST" action="/feedback">
+  <input type="hidden" name="type" value="${escapeHtml(type)}">
+  <input type="hidden" name="reportId" value="${escapeHtml(reportId)}">
+  <div class="honeypot"><input type="text" name="website" tabindex="-1" autocomplete="off"></div>
+  <div class="field">
+    <label>Your Email <span class="req">*</span></label>
+    <input type="email" name="email" required maxlength="120">
+  </div>
+  ${coachingFields}
+  <button type="submit">Submit</button>
+</form>
+</div>
+<div class="footer">Baseball Mechanics · Support: baseballmsupport@gmail.com</div>
+</body></html>`;
+}
+
+function buildThankYouHtml(type) {
+  const msg = type === "bug"
+    ? "Your bug report has been submitted. We'll look into it and follow up if needed."
+    : "Your coaching question has been submitted. We'll review it and get back to you.";
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Thank You — Baseball Mechanics</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#07090f;color:#c8d8f0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{max-width:440px;background:#0d1420;border:1px solid #1a2840;border-top:3px solid #2ecc71;border-radius:12px;padding:32px;text-align:center}
+h2{color:#2ecc71;margin-bottom:12px;font-size:22px}
+p{color:#8aaac8;line-height:1.6;margin-bottom:16px}
+.foot{font-size:12px;color:#4a6080;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>✓ Submitted</h2>
+  <p>${escapeHtml(msg)}</p>
+  <div class="foot">⚾ Baseball Mechanics · baseballmsupport@gmail.com</div>
+</div>
+</body></html>`;
+}
+
+app.get("/feedback", (req, res) => {
+  const type     = req.query.type === "bug" ? "bug" : "coaching";
+  const reportId = String(req.query.id || "").slice(0, 40);
+  res.setHeader("Content-Type", "text/html");
+  res.send(buildFeedbackFormHtml(type, reportId));
+});
+
+app.post("/feedback", feedbackLimiter, async (req, res) => {
+  const { type, reportId, email, playerName, analysisMode, question, notes, deviceType, appVersion, description, website } = req.body;
+  res.setHeader("Content-Type", "text/html");
+  if (website) return res.send(buildThankYouHtml(type));
+  if (!email || !EMAIL_REGEX.test(email)) return res.status(400).send("<p>Invalid email. Please go back and try again.</p>");
+
+  const isCoaching = type !== "bug";
+  const subject = isCoaching
+    ? `[Coaching Question] ${email} — Analysis ${reportId || "N/A"}`
+    : `[Bug Report] ${email} — Analysis ${reportId || "N/A"}`;
+  const text = isCoaching
+    ? `COACHING QUESTION\n\nFrom: ${email}\nPlayer: ${playerName || "N/A"}\nMode: ${analysisMode || "N/A"}\nAnalysis ID: ${reportId || "N/A"}\nTimestamp: ${new Date().toISOString()}\n\nQuestion:\n${question || "N/A"}\n\nAdditional Notes:\n${notes || "None"}`
+    : `BUG REPORT\n\nFrom: ${email}\nDevice: ${deviceType || "N/A"}\nApp Version: ${appVersion || "N/A"}\nAnalysis ID: ${reportId || "N/A"}\nTimestamp: ${new Date().toISOString()}\n\nDescription:\n${description || "N/A"}`;
+
+  try {
+    await mailer.sendMail({ from: '"Baseball Mechanics Feedback" <fixnetworkpc@gmail.com>', to: OWNER_EMAIL, replyTo: email, subject, text });
+  } catch (err) {
+    console.error("Feedback email error:", err.message);
+  }
+  res.send(buildThankYouHtml(type));
 });
 
 app.listen(port, () => console.log(`Baseball Mechanics API running on port ${port}`));
