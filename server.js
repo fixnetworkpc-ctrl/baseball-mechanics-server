@@ -510,9 +510,12 @@ app.post("/analyze", requireAppSecret, analyzeLimiter, async (req, res) => {
   const content = frames.map(f => ({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: f.base64 } }));
   const name = safeName ? `${mode === "pitching" ? "Pitcher" : "Batter"}: ${safeName}. ` : "";
   const seq  = frames.map((f, i) => `Frame ${i+1}: ${f.label}`).join(" | ");
+  const hasRear  = frames.some(f => f.label && f.label.startsWith("Rear –"));
   const isDualCamera = frames.some(f => f.label && f.label.startsWith("Side –"));
   const dualNote = isDualCamera
-    ? " Frames are provided from TWO camera angles (Side view and Front view). Use both perspectives together for a comprehensive 3D mechanical analysis — the side view shows stride, hip rotation, and arm path; the front view reveals swing plane, hip alignment, and hand path."
+    ? hasRear
+      ? " Frames are provided from THREE camera angles (Side, Front, and Rear views). Use all three perspectives for a full 3D mechanical analysis — side view shows stride and arm path, front view reveals swing plane and alignment, rear view shows hip rotation, spine angle, and follow-through depth."
+      : " Frames are provided from TWO camera angles (Side view and Front view). Use both perspectives for a comprehensive 3D mechanical analysis — the side view shows stride, hip rotation, and arm path; the front view reveals swing plane, hip alignment, and hand path."
     : "";
   content.push({ type: "text", text: `${name}${frames.length} frames: ${seq}. Analyze all frames and return full JSON breakdown.${dualNote}` });
 
