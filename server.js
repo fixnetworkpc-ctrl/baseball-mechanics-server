@@ -11,7 +11,7 @@ const port = process.env.PORT || 3001;
 
 // ── Security constants ────────────────────────────────────────────────────────
 const APP_SECRET = process.env.APP_SECRET;
-const MAX_FRAMES = 12;
+const MAX_FRAMES = 24;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_KEY });
@@ -375,6 +375,14 @@ Analyze labeled frames as a complete motion sequence comparing to these standard
 
 CRITICAL RULE: Your JSON response must NEVER contain specific player names. Describe mechanics using phrases like professional-grade arm path, elite-level delivery, consistent with high-velocity professional standards. The benchmark list informs your analysis quality only — never appear as named references in your JSON output.
 
+GRADING SCALE — apply strictly against professional MLB standards. Do not grade on effort, age, or potential:
+A+ / A / A-: Professional or near-professional execution. Mechanics match MLB benchmarks on nearly every key checkpoint. Extremely rare outside professional baseball.
+B+ / B / B-: College or advanced competitive amateur level. Strong fundamentals with only minor deviations from professional standards. Uncommon in players under 16.
+C+ / C / C-: High school varsity level. Fundamentals mostly present but with clear, correctable flaws visible across multiple frames.
+D+ / D / D-: Recreational or beginner level. Significant deviations from proper mechanics across several checkpoints. Typical for youth players aged 8-12.
+F: Poor mechanics with multiple critical flaws that risk injury or severely limit performance.
+Be honest — most youth players aged 8-12 should score D to C range. Grading inflation helps no one. Assign the grade the mechanics earn, not the grade that feels encouraging.
+
 DRILL LIBRARY — for each opportunity use the exact drill name in "drillName":
 ${buildDrillList("pitching")}
 
@@ -428,6 +436,14 @@ const STATIC_BATTING_SYSTEM = `You are an expert baseball hitting coach and biom
 Shared mechanical standards: balanced athletic stance, controlled load and trigger, stride toward pitcher, front heel plant triggers hip rotation, hips fire before hands, hands stay inside the ball, barrel stays in the zone, extension through contact, complete follow-through with balance.
 
 CRITICAL RULE: Your JSON response must NEVER contain specific player names. Use phrases like professional-grade hip rotation, elite-level barrel path, consistent with top professional contact mechanics. The benchmark list informs your analysis quality only — never appear as named references in your JSON output.
+
+GRADING SCALE — apply strictly against professional MLB standards. Do not grade on effort, age, or potential:
+A+ / A / A-: Professional or near-professional execution. Mechanics match MLB benchmarks on nearly every key checkpoint. Extremely rare outside professional baseball.
+B+ / B / B-: College or advanced competitive amateur level. Strong fundamentals with only minor deviations from professional standards. Uncommon in players under 16.
+C+ / C / C-: High school varsity level. Fundamentals mostly present but with clear, correctable flaws visible across multiple frames.
+D+ / D / D-: Recreational or beginner level. Significant deviations from proper mechanics across several checkpoints. Typical for youth players aged 8-12.
+F: Poor mechanics with multiple critical flaws that risk injury or severely limit performance.
+Be honest — most youth players aged 8-12 should score D to C range. Grading inflation helps no one. Assign the grade the mechanics earn, not the grade that feels encouraging.
 
 DRILL LIBRARY — for each opportunity use the exact drill name in "drillName":
 ${buildDrillList("batting")}
@@ -494,7 +510,11 @@ app.post("/analyze", requireAppSecret, analyzeLimiter, async (req, res) => {
   const content = frames.map(f => ({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: f.base64 } }));
   const name = safeName ? `${mode === "pitching" ? "Pitcher" : "Batter"}: ${safeName}. ` : "";
   const seq  = frames.map((f, i) => `Frame ${i+1}: ${f.label}`).join(" | ");
-  content.push({ type: "text", text: `${name}${frames.length} frames: ${seq}. Analyze all frames and return full JSON breakdown.` });
+  const isDualCamera = frames.some(f => f.label && f.label.startsWith("Side –"));
+  const dualNote = isDualCamera
+    ? " Frames are provided from TWO camera angles (Side view and Front view). Use both perspectives together for a comprehensive 3D mechanical analysis — the side view shows stride, hip rotation, and arm path; the front view reveals swing plane, hip alignment, and hand path."
+    : "";
+  content.push({ type: "text", text: `${name}${frames.length} frames: ${seq}. Analyze all frames and return full JSON breakdown.${dualNote}` });
 
   try {
     const message  = await client.messages.create({ model: "claude-sonnet-4-6", max_tokens: 4000, system: systemBlocks, messages: [{ role: "user", content }] });
