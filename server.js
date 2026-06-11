@@ -164,8 +164,16 @@ Be honest — most youth players aged 8-12 should score D to C range. Grading in
 DRILL LIBRARY — for each opportunity use the exact drill name in "drillName":
 ${buildDrillList("batting")}
 
+CONTACT TENDENCY — based on visible swing mechanics, assess the batter's likely ball-flight outcome. Include this block whenever frames show the swing through or near contact. Omit entirely only if footage ends before the swing begins.
+headPosition: head stability from load through contact — one of: Locked In / Minor Drift / Significant Movement.
+attackAngle: estimated swing plane at contact — one of: Steep Downward / Slightly Down / Level / Slightly Up / Steep Upward.
+barrelDirection: where the barrel is aimed at the contact zone — one of: Pull Side / Up the Middle / Opposite Field.
+balance: body control through the swing — one of: Excellent / Good / Forward Drift / Backward Drift / Collapsing.
+tendency: most likely ball-flight outcome — one of: Ground Ball / Line Drive / Fly Ball / Mixed.
+explanation: 1-2 sentences connecting these mechanics to the tendency prediction.
+
 Analyze labeled frames as a complete swing sequence. Respond ONLY with valid JSON (no markdown, no preamble):
-{"overallGrade":"A","overallSummary":"2-3 sentences","injuryRisk":"LOW","healthNote":"1-2 sentences on wrist/elbow/shoulder stress.","strengths":[{"title":"title","detail":"2-4 sentences.","mlbMatch":"Describe which benchmark profile this most resembles without naming the player."}],"opportunities":[{"title":"title","priority":"CRITICAL","frameRef":"Frame 7","detail":"Thorough explanation.","mlbExample":"Describe what elite professionals do here without naming the player.","drill":"1-2 sentence player-specific coaching note for this opportunity.","drillName":"Exact drill name from the library above."}],"coachNote":"2-3 sentence honest encouraging close.","qualityWarnings":["include only if a frame is clearly blurry, too dark, or obscures key mechanics — otherwise omit this field"]}
+{"overallGrade":"A","overallSummary":"2-3 sentences","injuryRisk":"LOW","healthNote":"1-2 sentences on wrist/elbow/shoulder stress.","strengths":[{"title":"title","detail":"2-4 sentences.","mlbMatch":"Describe which benchmark profile this most resembles without naming the player."}],"opportunities":[{"title":"title","priority":"CRITICAL","frameRef":"Frame 7","detail":"Thorough explanation.","mlbExample":"Describe what elite professionals do here without naming the player.","drill":"1-2 sentence player-specific coaching note for this opportunity.","drillName":"Exact drill name from the library above."}],"coachNote":"2-3 sentence honest encouraging close.","contactTendency":{"headPosition":"Locked In","attackAngle":"Level","barrelDirection":"Pull Side","balance":"Good","tendency":"Line Drive","explanation":"1-2 sentences."},"qualityWarnings":["include only if a frame is clearly blurry, too dark, or obscures key mechanics — otherwise omit this field"]}
 injuryRisk: LOW MODERATE or HIGH. priority: CRITICAL HIGH MEDIUM or LOW.`;
 
 function buildBatterSection(batters) {
@@ -278,7 +286,23 @@ app.post("/send-results", requireAppSecret, emailLimiter, async (req, res) => {
 
   const oppsHtml = (d.opportunities || []).map(o => `<div style="background:#fff8f5;border-left:4px solid #e74c3c;border-radius:6px;padding:14px;margin-bottom:12px"><strong>${escapeHtml(o.priority)}: ${escapeHtml(o.title)}</strong>${o.frameRef ? ` (${escapeHtml(o.frameRef)})` : ""}<p style="margin:8px 0">${escapeHtml(o.detail)}</p>${o.mlbExample ? `<p style="color:#8a6010"><strong>Elite Reference:</strong> ${escapeHtml(o.mlbExample)}</p>` : ""}${drillHtml(o)}</div>`).join("");
   const strsHtml = (d.strengths || []).map(s => `<div style="background:#efffee;border-left:4px solid #2ecc71;border-radius:6px;padding:14px;margin-bottom:10px"><strong>✓ ${escapeHtml(s.title)}</strong><p style="margin:6px 0">${escapeHtml(s.detail)}</p>${s.mlbMatch ? `<p style="color:#2a6a40;font-style:italic">${escapeHtml(s.mlbMatch)}</p>` : ""}</div>`).join("");
-  const html = `<!DOCTYPE html><html><body style="font-family:Georgia,serif;max-width:640px;margin:0 auto;background:#fff"><div style="background:#07090f;padding:20px;border-bottom:3px solid #b8943a"><h1 style="color:#fff;margin:0">⚾ Baseball Mechanics</h1></div><div style="padding:20px"><p>Hi ${safeUserName},</p><p>Your <strong>${modeLabel} Analysis</strong> for <strong>${safePlayerName || safeUserName}</strong> is complete.</p><div style="background:#f0f8f0;border:2px solid #2ecc71;border-radius:8px;padding:16px;margin:16px 0"><h2 style="margin:0 0 8px">Grade: ${escapeHtml(d.overallGrade)} | ${mode === "pitching" ? "Arm Health" : "Injury"} Risk: ${escapeHtml(risk)}</h2><p>${escapeHtml(d.overallSummary)}</p></div><div style="background:#fdf8e8;border:1px solid #c8a030;border-radius:6px;padding:10px;margin-bottom:16px;font-size:12px"><strong>Benchmarked against:</strong> ${escapeHtml(benchmarks)}</div><h3>Opportunities</h3>${oppsHtml}<h3>Strengths</h3>${strsHtml}${d.coachNote ? `<div style="background:#fdf8e8;border-top:3px solid #c8a030;padding:14px;margin-top:16px"><em>"${escapeHtml(d.coachNote)}"</em></div>` : ""}<p style="color:#999;font-size:11px;margin-top:20px">Baseball Mechanics App · ${new Date(timestamp || Date.now()).toLocaleDateString()}</p></div></body></html>`;
+  const tendencyHtml = (mode === "batting" && d.contactTendency) ? (() => {
+    const ct = d.contactTendency;
+    const tColor = { "Ground Ball": "#c8651a", "Line Drive": "#2ecc71", "Fly Ball": "#3a8ce8", "Mixed": "#b8943a" }[ct.tendency] || "#b8943a";
+    return `<div style="background:#f8f4ee;border:1px solid ${tColor};border-top:3px solid ${tColor};border-radius:8px;padding:14px;margin:16px 0">
+      <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Contact Tendency</div>
+      <div style="display:inline-block;padding:4px 14px;border:1px solid ${tColor};border-radius:6px;font-size:18px;font-weight:bold;color:${tColor};margin-bottom:10px">${escapeHtml(ct.tendency)}</div>
+      <table style="font-size:12px;border-collapse:collapse;width:100%">
+        <tr><td style="color:#888;padding:2px 0">Head Position</td><td style="font-weight:600;text-align:right">${escapeHtml(ct.headPosition)}</td></tr>
+        <tr><td style="color:#888;padding:2px 0">Attack Angle</td><td style="font-weight:600;text-align:right">${escapeHtml(ct.attackAngle)}</td></tr>
+        <tr><td style="color:#888;padding:2px 0">Barrel Direction</td><td style="font-weight:600;text-align:right">${escapeHtml(ct.barrelDirection)}</td></tr>
+        <tr><td style="color:#888;padding:2px 0">Balance</td><td style="font-weight:600;text-align:right">${escapeHtml(ct.balance)}</td></tr>
+      </table>
+      ${ct.explanation ? `<p style="margin:10px 0 0;font-size:12px;color:#555;font-style:italic">${escapeHtml(ct.explanation)}</p>` : ""}
+    </div>`;
+  })() : "";
+
+  const html = `<!DOCTYPE html><html><body style="font-family:Georgia,serif;max-width:640px;margin:0 auto;background:#fff"><div style="background:#07090f;padding:20px;border-bottom:3px solid #b8943a"><h1 style="color:#fff;margin:0">⚾ Baseball Mechanics</h1></div><div style="padding:20px"><p>Hi ${safeUserName},</p><p>Your <strong>${modeLabel} Analysis</strong> for <strong>${safePlayerName || safeUserName}</strong> is complete.</p><div style="background:#f0f8f0;border:2px solid #2ecc71;border-radius:8px;padding:16px;margin:16px 0"><h2 style="margin:0 0 8px">Grade: ${escapeHtml(d.overallGrade)} | ${mode === "pitching" ? "Arm Health" : "Injury"} Risk: ${escapeHtml(risk)}</h2><p>${escapeHtml(d.overallSummary)}</p></div><div style="background:#fdf8e8;border:1px solid #c8a030;border-radius:6px;padding:10px;margin-bottom:16px;font-size:12px"><strong>Benchmarked against:</strong> ${escapeHtml(benchmarks)}</div>${tendencyHtml}<h3>Opportunities</h3>${oppsHtml}<h3>Strengths</h3>${strsHtml}${d.coachNote ? `<div style="background:#fdf8e8;border-top:3px solid #c8a030;padding:14px;margin-top:16px"><em>"${escapeHtml(d.coachNote)}"</em></div>` : ""}<p style="color:#999;font-size:11px;margin-top:20px">Baseball Mechanics App · ${new Date(timestamp || Date.now()).toLocaleDateString()}</p></div></body></html>`;
   try {
     await mailer.sendMail({ from: '"Baseball Mechanics App" <fixnetworkpc@gmail.com>', to: userEmail, subject: `⚾ Your ${modeLabel} Analysis — ${safePlayerName || safeUserName}`, html });
     if (req.body.tier && req.body.tier !== "free") {
