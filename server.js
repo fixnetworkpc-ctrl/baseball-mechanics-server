@@ -129,8 +129,10 @@ Be honest — most youth players aged 8-12 should score D to C range. Grading in
 DRILL LIBRARY — for each opportunity use the exact drill name in "drillName":
 ${buildDrillList("pitching")}
 
+MOVEMENT AGE — if the player's chronological age is provided, estimate movementAge (integer): the developmental age their mechanics most closely reflect. Base this on mechanical maturity, sequencing sophistication, and consistency relative to typical athlete development curves — not on effort or athleticism. A 12-year-old with mechanics typical of a 14-year-old gets movementAge 14. A 15-year-old with mechanics typical of a 12-year-old gets movementAge 12. Omit this field entirely if no chronological age is provided.
+
 Respond ONLY with valid JSON (no markdown, no preamble):
-{"overallGrade":"A","overallSummary":"2-3 sentences mentioning which benchmark pitchers this resembles.","armHealthRisk":"LOW","armHealthNote":"1-2 sentences on arm safety.","strengths":[{"title":"title","detail":"2-4 sentences.","mlbMatch":"Which pitcher and why."}],"opportunities":[{"title":"title","priority":"CRITICAL","frameRef":"Frame 8","detail":"Thorough explanation with benchmark comparison.","mlbExample":"Specific benchmark pitcher who does this correctly and what it looks like.","drill":"1-2 sentence player-specific coaching note for this opportunity.","drillName":"Exact drill name from the library above."}],"coachNote":"2-3 sentence honest encouraging close.","qualityWarnings":["include only if a frame is clearly blurry, too dark, or obscures key mechanics — otherwise omit this field"]}
+{"overallGrade":"A","overallSummary":"2-3 sentences mentioning which benchmark pitchers this resembles.","armHealthRisk":"LOW","armHealthNote":"1-2 sentences on arm safety.","strengths":[{"title":"title","detail":"2-4 sentences.","mlbMatch":"Which pitcher and why."}],"opportunities":[{"title":"title","priority":"CRITICAL","frameRef":"Frame 8","detail":"Thorough explanation with benchmark comparison.","mlbExample":"Specific benchmark pitcher who does this correctly and what it looks like.","drill":"1-2 sentence player-specific coaching note for this opportunity.","drillName":"Exact drill name from the library above."}],"coachNote":"2-3 sentence honest encouraging close.","movementAge":14,"qualityWarnings":["include only if a frame is clearly blurry, too dark, or obscures key mechanics — otherwise omit this field"]}
 armHealthRisk: LOW MODERATE or HIGH. priority: CRITICAL HIGH MEDIUM or LOW.`;
 
 function buildPitcherSection(pitchers) {
@@ -164,6 +166,8 @@ Be honest — most youth players aged 8-12 should score D to C range. Grading in
 DRILL LIBRARY — for each opportunity use the exact drill name in "drillName":
 ${buildDrillList("batting")}
 
+MOVEMENT AGE — if the player's chronological age is provided, estimate movementAge (integer): the developmental age their mechanics most closely reflect. Base this on mechanical maturity, sequencing sophistication, and consistency relative to typical athlete development curves — not on effort or athleticism. A 12-year-old with mechanics typical of a 14-year-old gets movementAge 14. A 15-year-old with mechanics typical of a 12-year-old gets movementAge 12. Omit this field entirely if no chronological age is provided.
+
 CONTACT TENDENCY — based on visible swing mechanics, assess the batter's likely ball-flight outcome. Include this block whenever frames show the swing through or near contact. Omit entirely only if footage ends before the swing begins.
 headPosition: head stability from load through contact — one of: Locked In / Minor Drift / Significant Movement.
 attackAngle: estimated swing plane at contact — one of: Steep Downward / Slightly Down / Level / Slightly Up / Steep Upward.
@@ -173,7 +177,7 @@ tendency: most likely ball-flight outcome — one of: Ground Ball / Line Drive /
 explanation: 1-2 sentences connecting these mechanics to the tendency prediction.
 
 Analyze labeled frames as a complete swing sequence. Respond ONLY with valid JSON (no markdown, no preamble):
-{"overallGrade":"A","overallSummary":"2-3 sentences","injuryRisk":"LOW","healthNote":"1-2 sentences on wrist/elbow/shoulder stress.","strengths":[{"title":"title","detail":"2-4 sentences.","mlbMatch":"Describe which benchmark profile this most resembles without naming the player."}],"opportunities":[{"title":"title","priority":"CRITICAL","frameRef":"Frame 7","detail":"Thorough explanation.","mlbExample":"Describe what elite professionals do here without naming the player.","drill":"1-2 sentence player-specific coaching note for this opportunity.","drillName":"Exact drill name from the library above."}],"coachNote":"2-3 sentence honest encouraging close.","contactTendency":{"headPosition":"Locked In","attackAngle":"Level","barrelDirection":"Pull Side","balance":"Good","tendency":"Line Drive","explanation":"1-2 sentences."},"qualityWarnings":["include only if a frame is clearly blurry, too dark, or obscures key mechanics — otherwise omit this field"]}
+{"overallGrade":"A","overallSummary":"2-3 sentences","injuryRisk":"LOW","healthNote":"1-2 sentences on wrist/elbow/shoulder stress.","strengths":[{"title":"title","detail":"2-4 sentences.","mlbMatch":"Describe which benchmark profile this most resembles without naming the player."}],"opportunities":[{"title":"title","priority":"CRITICAL","frameRef":"Frame 7","detail":"Thorough explanation.","mlbExample":"Describe what elite professionals do here without naming the player.","drill":"1-2 sentence player-specific coaching note for this opportunity.","drillName":"Exact drill name from the library above."}],"coachNote":"2-3 sentence honest encouraging close.","movementAge":14,"contactTendency":{"headPosition":"Locked In","attackAngle":"Level","barrelDirection":"Pull Side","balance":"Good","tendency":"Line Drive","explanation":"1-2 sentences."},"qualityWarnings":["include only if a frame is clearly blurry, too dark, or obscures key mechanics — otherwise omit this field"]}
 injuryRisk: LOW MODERATE or HIGH. priority: CRITICAL HIGH MEDIUM or LOW.`;
 
 function buildBatterSection(batters) {
@@ -243,7 +247,8 @@ app.post("/analyze", requireAppSecret, analyzeLimiter, async (req, res) => {
       ? " Frames are provided from THREE camera angles (Side, Front, and Rear views). Use all three perspectives for a full 3D mechanical analysis — side view shows stride and arm path, front view reveals swing plane and alignment, rear view shows hip rotation, spine angle, and follow-through depth."
       : " Frames are provided from TWO camera angles (Side view and Front view). Use both perspectives for a comprehensive 3D mechanical analysis — the side view shows stride, hip rotation, and arm path; the front view reveals swing plane, hip alignment, and hand path."
     : "";
-  content.push({ type: "text", text: `${name}${frames.length} frames: ${seq}. Analyze all frames and return full JSON breakdown.${dualNote}` });
+  const ageNote = userInfo?.age ? ` Player chronological age: ${parseInt(userInfo.age)}.` : '';
+  content.push({ type: "text", text: `${name}${frames.length} frames: ${seq}. Analyze all frames and return full JSON breakdown.${dualNote}${ageNote}` });
 
   try {
     const message  = await client.messages.create({ model: "claude-sonnet-4-6", max_tokens: 4000, system: systemBlocks, messages: [{ role: "user", content }] });
