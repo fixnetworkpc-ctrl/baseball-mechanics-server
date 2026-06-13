@@ -15,6 +15,7 @@ const CLASSIC_BATTERS  = _b.classicBatters;
 const CURRENT_BATTERS  = _b.currentBatters;
 
 const app = express();
+app.set('trust proxy', 1); // Render sits behind a proxy; required for express-rate-limit and correct IP resolution
 const port = process.env.PORT || 3001;
 
 // ── Security constants ────────────────────────────────────────────────────────
