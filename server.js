@@ -217,6 +217,9 @@ app.get("/benchmarks", requireAppSecret, (req, res) => res.json(_b));
 
 app.post("/analyze", requireAppSecret, analyzeLimiter, async (req, res) => {
   const { mode, playerName, frames, userInfo } = req.body;
+  const reqKB = Math.round(JSON.stringify(req.body).length / 1024);
+  console.log(`[ANALYZE] stage=received frames=${frames?.length} mode=${mode} payload_kb=${reqKB}`);
+
   if (!frames?.length) return res.status(400).json({ message: "No frames provided" });
   if (frames.length > MAX_FRAMES) return res.status(400).json({ message: "Too many frames" });
   if (!["pitching", "batting"].includes(mode)) return res.status(400).json({ message: "Invalid mode" });
@@ -252,15 +255,18 @@ app.post("/analyze", requireAppSecret, analyzeLimiter, async (req, res) => {
   content.push({ type: "text", text: `${name}${frames.length} frames: ${seq}. Analyze all frames and return full JSON breakdown.${dualNote}${ageNote}` });
 
   try {
+    console.log(`[ANALYZE] stage=claude_start model=claude-sonnet-4-6 images=${frames.length}`);
     const message  = await client.messages.create({ model: "claude-sonnet-4-6", max_tokens: 4000, system: systemBlocks, messages: [{ role: "user", content }] });
     const raw      = message.content.map(b => b.text || "").join("").trim();
+    console.log(`[ANALYZE] stage=claude_done stop_reason=${message.stop_reason} raw_chars=${raw.length}`);
     let analysis   = extractJSON(raw);
+    console.log(`[ANALYZE] stage=json_parsed grade=${analysis.overallGrade}`);
     analysis      = injectDrillData(analysis, mode);
     analysis._benchmarks = benchmarkNames;
     analysis._reportId   = crypto.randomUUID();
     res.json({ analysis });
   } catch (err) {
-    console.error("Analysis error:", err.message);
+    console.error(`[ANALYZE] stage=error type=${err.constructor?.name} status=${err.status} message=${err.message}`);
     res.status(500).json({ message: err.message || "Analysis failed" });
   }
 });
